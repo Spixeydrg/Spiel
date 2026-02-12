@@ -3,7 +3,7 @@
 ========================= */
 
 class Person{
-    constructor(name, age=18, looks=50, intelligence=50){
+    constructor(name, age=0, looks=50, intelligence=50){
         this.name=name;
         this.age=age;
         this.looks=looks;
@@ -12,13 +12,13 @@ class Person{
     ageUp(){
         this.age++;
         this.looks=Math.max(0, this.looks-1);
-        this.intelligence=Math.min(100, this.intelligence+1);
+        this.intelligence=Math.min(100, this.intelligence+2);
     }
 }
 
 class Player extends Person{
     constructor(name){
-        super(name);
+        super(name,6); // Spieler startet mit 6 Jahren
         this.health=80;
         this.happiness=80;
         this.money=5000;
@@ -31,7 +31,7 @@ class Player extends Person{
         this.house=null;
         this.stocks=0;
 
-        this.schoolLevel=0; // 0=keine Schule,1=Grundschule,2=Gymnasium,3=Uni
+        this.education=0; // 0=Kindergarten,1=Grundschule,2=Gymnasium/Hauptschule,3=Uni/Ausbildung
         this.job=null;
         this.alive=true;
 
@@ -61,8 +61,11 @@ class Game{
             {name:"Kellner", req:0, salary:1500},
             {name:"Programmierer", req:60, salary:5000},
             {name:"Arzt", req:75, salary:7000},
-            {name:"Politiker", req:65, salary:6000}
+            {name:"Politiker", req:65, salary:6000},
+            {name:"Unternehmer", req:70, salary:8000}
         ];
+
+        this.educationNames=["Kindergarten","Grundschule","Gymnasium/Hauptschule","Universität/Ausbildung"];
     }
 
     start(){
@@ -77,10 +80,9 @@ class Game{
         this.render();
     }
 
-    save(){
-        localStorage.setItem("lifeSimPhase4",JSON.stringify(this.player));
-    }
+    save(){ localStorage.setItem("lifeSimPhase4",JSON.stringify(this.player)); }
 
+    /* ================= AGE UP ================= */
     ageUp(){
         const p=this.player;
         if(!p.alive) return;
@@ -88,24 +90,21 @@ class Game{
         p.age++;
         p.health=Math.max(0,p.health-2);
         p.happiness=Math.max(0,p.happiness-1);
-        p.intelligence=Math.min(100,p.intelligence+1);
 
-        // Partner altert auch
-        if(p.partner){
-            p.partner.ageUp();
-            p.relationship=Math.max(0,p.relationship-5);
-        }
+        // Partner altert
+        if(p.partner) { p.partner.ageUp(); p.relationship=Math.max(0,p.relationship-5); }
 
         // Kinder altern
         p.children.forEach(c=>c.ageUp());
 
-        // Aktienpreis ändern
+        // Aktienmarkt
         this.stockPrice += Math.floor((Math.random()-0.5)*20);
 
+        // Schule/Job
+        this.progressEducation();
+
         // Gehalt aus Job
-        if(p.job){
-            p.money+=p.job.salary;
-        }
+        if(p.job) p.money+=p.job.salary;
 
         // Tod
         if(p.age>85 && Math.random()<0.4) this.die();
@@ -115,12 +114,40 @@ class Game{
         this.render();
     }
 
-    die(){
-        this.player.alive=false;
-        alert(`${this.player.name} ist mit ${this.player.age} Jahren gestorben.`);
+    die(){ this.player.alive=false; alert(`${this.player.name} ist mit ${this.player.age} Jahren gestorben.`); }
+
+    /* ================= EDUCATION ================= */
+    progressEducation(){
+        const p=this.player;
+        if(p.education<3){ // Bis Uni/Ausbildung
+            if((p.age>=6 && p.education===0) || (p.age>=10 && p.education===1) || (p.age>=16 && p.education===2)){
+                p.education++;
+                alert(`Du hast ${this.educationNames[p.education]} erreicht!`);
+            }
+        }
     }
 
-    /* ========== HÄUSER SYSTEM ========== */
+    /* ================= JOB SYSTEM ================= */
+    selectJob(){
+        const p=this.player;
+        const possibleJobs = this.jobs.filter(j => p.intelligence >= j.req);
+        if(possibleJobs.length===0){ alert("Keine Jobs verfügbar!"); return; }
+
+        let jobList = "Wähle einen Job:\n";
+        possibleJobs.forEach((j,i)=>{ jobList += `${i+1}: ${j.name} (Gehalt: ${j.salary}€)\n`; });
+        const choice = parseInt(prompt(jobList))-1;
+
+        if(possibleJobs[choice]){
+            p.job=possibleJobs[choice];
+            alert(`Du hast den Job: ${p.job.name}`);
+            this.save();
+            this.render();
+        }else{
+            alert("Ungültige Auswahl");
+        }
+    }
+
+    /* ================= HOUSES ================= */
     openHouseModal(){
         const houseDiv=document.getElementById("houseContent");
         houseDiv.innerHTML="<h3>Häuser kaufen</h3>";
@@ -135,19 +162,15 @@ class Game{
                     this.closeHouseModal();
                     this.save();
                     this.render();
-                }else{
-                    alert("Zu wenig Geld!");
-                }
+                }else{ alert("Zu wenig Geld!"); }
             };
             houseDiv.appendChild(btn);
         });
         document.getElementById("houseModal").style.display="flex";
     }
-    closeHouseModal(){
-        document.getElementById("houseModal").style.display="none";
-    }
+    closeHouseModal(){ document.getElementById("houseModal").style.display="none"; }
 
-    /* ========== DATING SYSTEM ========== */
+    /* ================= DATING ================= */
     openDatingModal(){
         const datingDiv=document.getElementById("datingContent");
         datingDiv.innerHTML="<h3>Partner auswählen</h3>";
@@ -167,17 +190,12 @@ class Game{
         });
         document.getElementById("datingModal").style.display="flex";
     }
-    closeDatingModal(){
-        document.getElementById("datingModal").style.display="none";
-    }
+    closeDatingModal(){ document.getElementById("datingModal").style.display="none"; }
 
-    /* ========== KINDER SYSTEM ========== */
+    /* ================= KINDER ================= */
     haveChild(){
-        if(!this.player.partner){
-            alert("Du brauchst einen Partner!");
-            return;
-        }
-        const child = new Person("Kind",0,50,50);
+        if(!this.player.partner){ alert("Du brauchst einen Partner!"); return; }
+        const child=new Person("Kind",0,50,50);
         this.player.children.push(child);
         this.player.happiness+=10;
         alert("Kind geboren!");
@@ -185,43 +203,11 @@ class Game{
         this.render();
     }
 
-    /* ========== JOB SYSTEM ========== */
-    findJob(){
-        const possible = this.jobs.filter(j => this.player.intelligence >= j.req);
-        if(possible.length==0){
-            alert("Keine Jobs verfügbar!");
-            return;
-        }
-        const job = possible[Math.floor(Math.random()*possible.length)];
-        this.player.job = job;
-        alert(`Du hast den Job: ${job.name}`);
-        this.save();
-        this.render();
-    }
+    /* ================= AKTIEN ================= */
+    buyStock(){ if(this.player.money>=this.stockPrice){ this.player.money-=this.stockPrice; this.player.stocks++; this.save(); this.render(); }else{ alert("Zu wenig Geld!"); } }
+    sellStock(){ if(this.player.stocks>0){ this.player.money+=this.stockPrice; this.player.stocks--; this.save(); this.render(); }else{ alert("Keine Aktien!"); } }
 
-    /* ========== AKTIEN SYSTEM ========== */
-    buyStock(){
-        if(this.player.money>=this.stockPrice){
-            this.player.money-=this.stockPrice;
-            this.player.stocks++;
-            this.save();
-            this.render();
-        }else{
-            alert("Zu wenig Geld!");
-        }
-    }
-    sellStock(){
-        if(this.player.stocks>0){
-            this.player.money+=this.stockPrice;
-            this.player.stocks--;
-            this.save();
-            this.render();
-        }else{
-            alert("Keine Aktien zum Verkaufen!");
-        }
-    }
-
-    /* ========== ACHIEVEMENTS ========== */
+    /* ================= ACHIEVEMENTS ================= */
     checkAchievements(){
         const p=this.player;
         if(p.money>100000 && !p.achievements.includes("Reich")) p.achievements.push("Reich");
@@ -229,11 +215,7 @@ class Game{
         if(p.age>=100 && !p.achievements.includes("100 Jahre")) p.achievements.push("100 Jahre");
     }
 
-    statBar(val,color){
-        if(val<0) val=0;
-        if(val>100) val=100;
-        return `<div class="statbar" style="width:${val}%;background:${color}"></div>`;
-    }
+    statBar(val,color){ if(val<0) val=0; if(val>100) val=100; return `<div class="statbar" style="width:${val}%;background:${color}"></div>`; }
 
     render(){
         const p=this.player;
@@ -244,6 +226,7 @@ class Game{
             <p>⭐ Fame: ${p.fame}</p>
             <p>🏠 Haus: ${p.house||"Keins"}</p>
             <p>📈 Aktien: ${p.stocks} (Preis: ${this.stockPrice}€)</p>
+            <p>🎓 Bildung: ${this.educationNames[p.education]}</p>
             <p>💼 Job: ${p.job ? p.job.name : "Kein Job"}</p>
             <p>❤️ Partner: ${p.partner ? p.partner.name+" ("+p.partner.age+")" : "Keiner"} (${p.relationship})</p>
             <p>👶 Kinder: ${p.children.length}</p>
@@ -257,13 +240,12 @@ class Game{
         </div>
 
         <div class="card">
-            ${p.alive ? `<button onclick="game.ageUp()">Nächstes Jahr</button>` : 
-            `<button onclick="localStorage.clear(); location.reload()">Neues Leben</button>`}
+            ${p.alive ? `<button onclick="game.ageUp()">Nächstes Jahr</button>` : `<button onclick="localStorage.clear(); location.reload()">Neues Leben</button>`}
 
             <button onclick="game.openDatingModal()">Dating</button>
             <button onclick="game.haveChild()">Kind bekommen</button>
             <button onclick="game.openHouseModal()">Haus kaufen</button>
-            <button onclick="game.findJob()">Job suchen</button>
+            <button onclick="game.selectJob()">Job auswählen</button>
             <button onclick="game.buyStock()">Aktie kaufen</button>
             <button onclick="game.sellStock()">Aktie verkaufen</button>
         </div>
