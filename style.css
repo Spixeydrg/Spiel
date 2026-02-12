@@ -2,11 +2,13 @@
     --bg:#0f0f14;
     --card:#1c1c24;
     --accent:#4aa3ff;
+    --danger:#ff4a4a;
+    --success:#4aff88;
 }
 
 body{
     margin:0;
-    font-family:Arial;
+    font-family:Arial, Helvetica, sans-serif;
     background:var(--bg);
     color:white;
 }
@@ -32,10 +34,30 @@ button{
     border-radius:6px;
     cursor:pointer;
     color:white;
+    transition:0.2s;
+}
+button:hover{
+    transform:scale(1.05);
 }
 
 .statbar{
     height:14px;
     border-radius:6px;
     margin-bottom:6px;
+}
+
+.modal{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.7);
+    justify-content:center;
+    align-items:center;
+}
+
+.modal-content{
+    background:var(--card);
+    padding:20px;
+    border-radius:12px;
+    max-width:500px;
 }
