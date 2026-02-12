@@ -2,258 +2,267 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Ultra LifeSim</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LifeSim Indie Edition</title>
+
 <style>
+:root{
+    --bg:#0f0f14;
+    --card:#1c1c24;
+    --accent:#4aa3ff;
+    --danger:#ff4a4a;
+    --success:#4aff88;
+}
+
 body{
     margin:0;
-    font-family:Arial;
-    background:#0f0f0f;
+    font-family:Arial, Helvetica, sans-serif;
+    background:var(--bg);
     color:white;
 }
+
 .container{
     max-width:1000px;
     margin:auto;
     padding:20px;
 }
+
 .card{
-    background:#1c1c1c;
+    background:var(--card);
     padding:15px;
     border-radius:12px;
     margin-bottom:15px;
 }
+
 button{
-    padding:8px 12px;
+    background:var(--accent);
     border:none;
+    padding:8px 14px;
+    margin:5px;
     border-radius:6px;
     cursor:pointer;
-    margin:4px;
-    background:#3498db;
     color:white;
+    transition:0.2s;
 }
-button:hover{background:#2980b9}
-.bar{
+button:hover{
+    transform:scale(1.05);
+}
+
+.statbar{
     height:14px;
     border-radius:6px;
     margin-bottom:6px;
 }
-h1{text-align:center}
+
+#eventModal{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.7);
+    display:none;
+    align-items:center;
+    justify-content:center;
+}
+
+.modalContent{
+    background:var(--card);
+    padding:20px;
+    border-radius:12px;
+    max-width:400px;
+}
 </style>
 </head>
 <body>
+
 <div class="container">
-<h1>🌍 Ultra LifeSim</h1>
-<div id="game"></div>
+    <h1>🌍 LifeSim Indie Edition</h1>
+    <div id="game"></div>
+</div>
+
+<div id="eventModal">
+    <div class="modalContent">
+        <h3 id="eventTitle"></h3>
+        <p id="eventText"></p>
+        <div id="eventChoices"></div>
+    </div>
 </div>
 
 <script>
+/* ==========================
+   CORE GAME ENGINE
+========================== */
+
 class Player{
     constructor(name){
         this.name=name;
         this.age=0;
-        this.gender=Math.random()>0.5?"Männlich":"Weiblich";
         this.health=80;
         this.happiness=80;
         this.intelligence=50;
         this.looks=50;
         this.money=1000;
         this.job="Arbeitslos";
-        this.education="Keine";
-        this.reputation=50;
-        this.partner=null;
-        this.children=[];
-        this.house=false;
-        this.car=false;
-        this.inPrison=false;
-        this.prisonYears=0;
         this.alive=true;
-        this.achievements=[];
     }
 }
 
-let player;
+class Game{
+    constructor(){
+        this.player=null;
+        this.events=this.createEvents();
+    }
 
-function save(){localStorage.setItem("ultraLife",JSON.stringify(player))}
-function load(){
-    let data=localStorage.getItem("ultraLife");
-    if(data){player=Object.assign(new Player(),JSON.parse(data))}
-    else newGame();
-    render();
-}
-
-function newGame(){
-    let name=prompt("Name?");
-    player=new Player(name||"Max");
-    save();
-}
-
-function bar(val,color){
-    if(val>100)val=100;
-    if(val<0)val=0;
-    return `<div class="bar" style="width:${val}%;background:${color}"></div>`;
-}
-
-function ageUp(){
-    if(!player.alive)return;
-
-    player.age++;
-
-    if(player.inPrison){
-        player.prisonYears--;
-        if(player.prisonYears<=0){
-            player.inPrison=false;
-            alert("Du bist frei!");
+    start(){
+        const save=localStorage.getItem("lifeSimIndie");
+        if(save){
+            this.player=Object.assign(new Player(),JSON.parse(save));
+        }else{
+            const name=prompt("Name deiner Person?");
+            this.player=new Player(name||"Alex");
+            this.save();
         }
-    }else{
-        randomEvent();
-        salary();
+        this.render();
     }
 
-    if(player.age>75 && Math.random()<0.3) die();
-    if(player.health<=0) die();
+    save(){
+        localStorage.setItem("lifeSimIndie",JSON.stringify(this.player));
+    }
 
-    checkAchievements();
-    save();
-    render();
-}
+    ageUp(){
+        if(!this.player.alive)return;
 
-function salary(){
-    if(player.job==="Arzt")player.money+=6000;
-    if(player.job==="Programmierer")player.money+=5000;
-    if(player.job==="Lehrer")player.money+=3000;
-}
+        this.player.age++;
 
-function randomEvent(){
-    let events=[
-        ()=>{player.happiness+=5;},
-        ()=>{player.health-=10; alert("Du wurdest krank.");},
-        ()=>{player.money+=2000; alert("Bonus erhalten!");},
-        ()=>{player.reputation-=5;}
-    ];
-    events[Math.floor(Math.random()*events.length)]();
-}
+        if(this.player.age>75 && Math.random()<0.3){
+            this.die("Altersschwäche");
+        }else{
+            this.triggerRandomEvent();
+        }
 
-function study(){
-    if(player.age<18){
-        player.intelligence+=5;
-        player.education="Schule";
-    }else{
-        player.intelligence+=10;
-        player.education="Studium";
+        this.limitStats();
+        this.save();
+        this.render();
+    }
+
+    limitStats(){
+        for(let key of ["health","happiness","intelligence","looks"]){
+            if(this.player[key]>100)this.player[key]=100;
+            if(this.player[key]<0)this.player[key]=0;
+        }
+        if(this.player.health<=0){
+            this.die("schlechter Gesundheit");
+        }
+    }
+
+    die(reason){
+        this.player.alive=false;
+        alert(`${this.player.name} ist mit ${this.player.age} Jahren an ${reason} gestorben.`);
+    }
+
+    createEvents(){
+        return [
+            {
+                title:"Du wurdest krank",
+                text:"Du fühlst dich schwach.",
+                choices:[
+                    {
+                        text:"Zum Arzt gehen (-200€)",
+                        effect:(p)=>{
+                            p.money-=200;
+                            p.health+=15;
+                        }
+                    },
+                    {
+                        text:"Ignorieren",
+                        effect:(p)=>{
+                            p.health-=20;
+                        }
+                    }
+                ]
+            },
+            {
+                title:"Du gewinnst im Lotto",
+                text:"Unglaublich!",
+                choices:[
+                    {
+                        text:"Feiern",
+                        effect:(p)=>{
+                            p.money+=5000;
+                            p.happiness+=10;
+                        }
+                    }
+                ]
+            }
+        ];
+    }
+
+    triggerRandomEvent(){
+        const event=this.events[Math.floor(Math.random()*this.events.length)];
+        this.showEvent(event);
+    }
+
+    showEvent(event){
+        document.getElementById("eventTitle").innerText=event.title;
+        document.getElementById("eventText").innerText=event.text;
+
+        const choicesDiv=document.getElementById("eventChoices");
+        choicesDiv.innerHTML="";
+
+        event.choices.forEach(choice=>{
+            const btn=document.createElement("button");
+            btn.innerText=choice.text;
+            btn.onclick=()=>{
+                choice.effect(this.player);
+                this.closeEvent();
+                this.save();
+                this.render();
+            };
+            choicesDiv.appendChild(btn);
+        });
+
+        document.getElementById("eventModal").style.display="flex";
+    }
+
+    closeEvent(){
+        document.getElementById("eventModal").style.display="none";
+    }
+
+    statBar(value,color){
+        return `<div class="statbar" style="width:${value}%;background:${color}"></div>`;
+    }
+
+    render(){
+        const p=this.player;
+        document.getElementById("game").innerHTML=`
+        <div class="card">
+            <h2>${p.name} (${p.age})</h2>
+            <p>💰 ${p.money}€</p>
+            <p>💼 ${p.job}</p>
+        </div>
+
+        <div class="card">
+            ❤️ ${this.statBar(p.health,"red")}
+            😊 ${this.statBar(p.happiness,"yellow")}
+            🧠 ${this.statBar(p.intelligence,"blue")}
+            😎 ${this.statBar(p.looks,"pink")}
+        </div>
+
+        <div class="card">
+            ${p.alive ? 
+                `<button onclick="game.ageUp()">Nächstes Jahr</button>` :
+                `<button onclick="localStorage.clear(); location.reload()">Neues Leben</button>`
+            }
+        </div>
+        `;
     }
 }
 
-function getJob(){
-    if(player.education==="Studium" && player.intelligence>70){
-        player.job="Arzt";
-    }else if(player.intelligence>60){
-        player.job="Programmierer";
-    }else if(player.education==="Studium"){
-        player.job="Lehrer";
-    }else{
-        alert("Nicht qualifiziert!");
-    }
-}
+/* ==========================
+   INIT
+========================== */
 
-function date(){
-    if(player.age<16){alert("Zu jung!");return;}
-    if(!player.partner){
-        player.partner="Partner";
-        player.happiness+=10;
-    }else{
-        alert("Schon vergeben!");
-    }
-}
-
-function makeChild(){
-    if(player.partner){
-        player.children.push("Kind "+(player.children.length+1));
-        player.happiness+=5;
-    }
-}
-
-function commitCrime(){
-    if(Math.random()<0.5){
-        player.money+=3000;
-        player.reputation-=10;
-    }else{
-        player.inPrison=true;
-        player.prisonYears=3;
-        player.reputation-=20;
-    }
-}
-
-function buyHouse(){
-    if(player.money>=20000){
-        player.money-=20000;
-        player.house=true;
-    }
-}
-
-function buyCar(){
-    if(player.money>=10000){
-        player.money-=10000;
-        player.car=true;
-    }
-}
-
-function invest(){
-    if(player.money>=5000){
-        player.money-=5000;
-        if(Math.random()<0.5)player.money+=10000;
-        else alert("Investment verloren!");
-    }
-}
-
-function checkAchievements(){
-    if(player.money>100000 && !player.achievements.includes("Reich")){
-        player.achievements.push("Reich");
-    }
-    if(player.age>=100 && !player.achievements.includes("100 Jahre")){
-        player.achievements.push("100 Jahre");
-    }
-}
-
-function die(){
-    player.alive=false;
-    alert("Du bist im Alter von "+player.age+" gestorben.");
-}
-
-function render(){
-document.getElementById("game").innerHTML=`
-<div class="card">
-<h2>${player.name} (${player.age})</h2>
-<p>${player.gender}</p>
-<p>Job: ${player.job}</p>
-<p>Geld: ${player.money}€</p>
-<p>Ruf: ${player.reputation}</p>
-<p>Partner: ${player.partner||"Keiner"}</p>
-<p>Kinder: ${player.children.length}</p>
-<p>Haus: ${player.house?"Ja":"Nein"} | Auto: ${player.car?"Ja":"Nein"}</p>
-<p>Achievements: ${player.achievements.join(", ")}</p>
-</div>
-
-<div class="card">
-❤️ ${bar(player.health,"red")}
-😊 ${bar(player.happiness,"yellow")}
-🧠 ${bar(player.intelligence,"blue")}
-😎 ${bar(player.looks,"pink")}
-</div>
-
-<div class="card">
-${player.alive?`<button onclick="ageUp()">Nächstes Jahr</button>`:`<button onclick="newGame()">Neues Leben</button>`}
-<button onclick="study()">Lernen</button>
-<button onclick="getJob()">Job</button>
-<button onclick="date()">Dating</button>
-<button onclick="makeChild()">Kind</button>
-<button onclick="commitCrime()">Verbrechen</button>
-<button onclick="buyHouse()">Haus</button>
-<button onclick="buyCar()">Auto</button>
-<button onclick="invest()">Investieren</button>
-</div>
-`;
-}
-
-load();
+const game=new Game();
+game.start();
 </script>
+
 </body>
 </html>
