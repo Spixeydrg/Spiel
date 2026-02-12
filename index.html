@@ -1,106 +1,20 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LifeSim Indie Edition</title>
-
-<style>
-:root{
-    --bg:#0f0f14;
-    --card:#1c1c24;
-    --accent:#4aa3ff;
-    --danger:#ff4a4a;
-    --success:#4aff88;
-}
-
-body{
-    margin:0;
-    font-family:Arial, Helvetica, sans-serif;
-    background:var(--bg);
-    color:white;
-}
-
-.container{
-    max-width:1000px;
-    margin:auto;
-    padding:20px;
-}
-
-.card{
-    background:var(--card);
-    padding:15px;
-    border-radius:12px;
-    margin-bottom:15px;
-}
-
-button{
-    background:var(--accent);
-    border:none;
-    padding:8px 14px;
-    margin:5px;
-    border-radius:6px;
-    cursor:pointer;
-    color:white;
-    transition:0.2s;
-}
-button:hover{
-    transform:scale(1.05);
-}
-
-.statbar{
-    height:14px;
-    border-radius:6px;
-    margin-bottom:6px;
-}
-
-#eventModal{
-    position:fixed;
-    inset:0;
-    background:rgba(0,0,0,0.7);
-    display:none;
-    align-items:center;
-    justify-content:center;
-}
-
-.modalContent{
-    background:var(--card);
-    padding:20px;
-    border-radius:12px;
-    max-width:400px;
-}
-</style>
-</head>
-<body>
-
-<div class="container">
-    <h1>🌍 LifeSim Indie Edition</h1>
-    <div id="game"></div>
-</div>
-
-<div id="eventModal">
-    <div class="modalContent">
-        <h3 id="eventTitle"></h3>
-        <p id="eventText"></p>
-        <div id="eventChoices"></div>
-    </div>
-</div>
-
 <script>
-/* ==========================
-   CORE GAME ENGINE
-========================== */
 
 class Player{
     constructor(name){
         this.name=name;
         this.age=0;
+        this.country="Deutschland";
         this.health=80;
         this.happiness=80;
         this.intelligence=50;
         this.looks=50;
-        this.money=1000;
+        this.money=2000;
         this.job="Arbeitslos";
+        this.reputation=50;
+        this.loan=0;
+        this.inPrison=false;
+        this.prisonYears=0;
         this.alive=true;
     }
 }
@@ -108,15 +22,25 @@ class Player{
 class Game{
     constructor(){
         this.player=null;
-        this.events=this.createEvents();
+        this.countries={
+            "Deutschland":{tax:0.30},
+            "USA":{tax:0.25},
+            "Schweiz":{tax:0.15}
+        };
+        this.jobs=[
+            {name:"Kellner", req:0, salary:1500},
+            {name:"Programmierer", req:60, salary:5000},
+            {name:"Arzt", req:75, salary:7000},
+            {name:"Politiker", req:65, salary:6000}
+        ];
     }
 
     start(){
-        const save=localStorage.getItem("lifeSimIndie");
+        const save=localStorage.getItem("lifeSimPhase2");
         if(save){
             this.player=Object.assign(new Player(),JSON.parse(save));
         }else{
-            const name=prompt("Name deiner Person?");
+            const name=prompt("Name?");
             this.player=new Player(name||"Alex");
             this.save();
         }
@@ -124,19 +48,29 @@ class Game{
     }
 
     save(){
-        localStorage.setItem("lifeSimIndie",JSON.stringify(this.player));
+        localStorage.setItem("lifeSimPhase2",JSON.stringify(this.player));
     }
 
     ageUp(){
-        if(!this.player.alive)return;
+        const p=this.player;
+        if(!p.alive)return;
 
-        this.player.age++;
+        p.age++;
 
-        if(this.player.age>75 && Math.random()<0.3){
-            this.die("Altersschwäche");
+        if(p.inPrison){
+            p.prisonYears--;
+            if(p.prisonYears<=0){
+                p.inPrison=false;
+                alert("Du bist frei!");
+            }
         }else{
-            this.triggerRandomEvent();
+            this.randomEvent();
+            this.paySalary();
+            this.payLoanInterest();
         }
+
+        if(p.age>80 && Math.random()<0.35) this.die("Alter");
+        if(p.health<=0) this.die("Gesundheit");
 
         this.limitStats();
         this.save();
@@ -144,90 +78,99 @@ class Game{
     }
 
     limitStats(){
-        for(let key of ["health","happiness","intelligence","looks"]){
-            if(this.player[key]>100)this.player[key]=100;
-            if(this.player[key]<0)this.player[key]=0;
-        }
-        if(this.player.health<=0){
-            this.die("schlechter Gesundheit");
-        }
+        let p=this.player;
+        ["health","happiness","intelligence","looks","reputation"].forEach(stat=>{
+            if(p[stat]>100)p[stat]=100;
+            if(p[stat]<0)p[stat]=0;
+        });
     }
 
     die(reason){
         this.player.alive=false;
-        alert(`${this.player.name} ist mit ${this.player.age} Jahren an ${reason} gestorben.`);
+        alert(`${this.player.name} starb mit ${this.player.age} an ${reason}`);
     }
 
-    createEvents(){
-        return [
-            {
-                title:"Du wurdest krank",
-                text:"Du fühlst dich schwach.",
-                choices:[
-                    {
-                        text:"Zum Arzt gehen (-200€)",
-                        effect:(p)=>{
-                            p.money-=200;
-                            p.health+=15;
-                        }
-                    },
-                    {
-                        text:"Ignorieren",
-                        effect:(p)=>{
-                            p.health-=20;
-                        }
-                    }
-                ]
+    changeCountry(country){
+        this.player.country=country;
+        this.save();
+        this.render();
+    }
+
+    paySalary(){
+        const job=this.jobs.find(j=>j.name===this.player.job);
+        if(!job)return;
+
+        const tax=this.countries[this.player.country].tax;
+        const net=job.salary*(1-tax);
+        this.player.money+=net;
+    }
+
+    findJob(){
+        const available=this.jobs.filter(j=>this.player.intelligence>=j.req);
+        if(available.length===0){
+            alert("Keine Qualifikation!");
+            return;
+        }
+        const job=available[Math.floor(Math.random()*available.length)];
+        this.player.job=job.name;
+        this.player.happiness+=5;
+    }
+
+    randomEvent(){
+        const events=[
+            ()=>{
+                this.player.health-=15;
+                alert("Du wurdest krank.");
             },
-            {
-                title:"Du gewinnst im Lotto",
-                text:"Unglaublich!",
-                choices:[
-                    {
-                        text:"Feiern",
-                        effect:(p)=>{
-                            p.money+=5000;
-                            p.happiness+=10;
-                        }
-                    }
-                ]
+            ()=>{
+                this.player.intelligence+=5;
+                alert("Du hast etwas gelernt.");
+            },
+            ()=>{
+                this.player.reputation-=10;
+                alert("Skandal! Ruf gesunken.");
             }
         ];
+        events[Math.floor(Math.random()*events.length)]();
     }
 
-    triggerRandomEvent(){
-        const event=this.events[Math.floor(Math.random()*this.events.length)];
-        this.showEvent(event);
+    commitCrime(){
+        if(Math.random()<0.5){
+            this.player.money+=4000;
+            this.player.reputation-=15;
+        }else{
+            this.player.inPrison=true;
+            this.player.prisonYears=3;
+            this.player.reputation-=25;
+        }
+        this.save();
+        this.render();
     }
 
-    showEvent(event){
-        document.getElementById("eventTitle").innerText=event.title;
-        document.getElementById("eventText").innerText=event.text;
-
-        const choicesDiv=document.getElementById("eventChoices");
-        choicesDiv.innerHTML="";
-
-        event.choices.forEach(choice=>{
-            const btn=document.createElement("button");
-            btn.innerText=choice.text;
-            btn.onclick=()=>{
-                choice.effect(this.player);
-                this.closeEvent();
-                this.save();
-                this.render();
-            };
-            choicesDiv.appendChild(btn);
-        });
-
-        document.getElementById("eventModal").style.display="flex";
+    takeLoan(){
+        this.player.money+=10000;
+        this.player.loan+=10000;
+        this.save();
+        this.render();
     }
 
-    closeEvent(){
-        document.getElementById("eventModal").style.display="none";
+    repayLoan(){
+        if(this.player.money>=this.player.loan){
+            this.player.money-=this.player.loan;
+            this.player.loan=0;
+        }
+        this.save();
+        this.render();
     }
 
-    statBar(value,color){
-        return `<div class="statbar" style="width:${value}%;background:${color}"></div>`;
+    payLoanInterest(){
+        if(this.player.loan>0){
+            this.player.loan*=1.05;
+        }
+    }
+
+    statBar(val,color){
+        return `<div class="statbar" style="width:${val}%;background:${color}"></div>`;
     }
 
     render(){
@@ -235,8 +178,12 @@ class Game{
         document.getElementById("game").innerHTML=`
         <div class="card">
             <h2>${p.name} (${p.age})</h2>
-            <p>💰 ${p.money}€</p>
+            <p>🌍 ${p.country}</p>
+            <p>💰 ${Math.floor(p.money)}€</p>
             <p>💼 ${p.job}</p>
+            <p>🏦 Kredit: ${Math.floor(p.loan)}€</p>
+            <p>⭐ Ruf: ${p.reputation}</p>
+            <p>🚔 Gefängnis: ${p.inPrison ? p.prisonYears+" Jahre" : "Nein"}</p>
         </div>
 
         <div class="card">
@@ -247,22 +194,26 @@ class Game{
         </div>
 
         <div class="card">
-            ${p.alive ? 
-                `<button onclick="game.ageUp()">Nächstes Jahr</button>` :
-                `<button onclick="localStorage.clear(); location.reload()">Neues Leben</button>`
-            }
+            ${p.alive?
+            `<button onclick="game.ageUp()">Nächstes Jahr</button>`:
+            `<button onclick="localStorage.clear();location.reload()">Neues Leben</button>`}
+            <button onclick="game.findJob()">Job suchen</button>
+            <button onclick="game.commitCrime()">Verbrechen</button>
+            <button onclick="game.takeLoan()">Kredit</button>
+            <button onclick="game.repayLoan()">Kredit zurückzahlen</button>
+        </div>
+
+        <div class="card">
+            Länder wechseln:<br>
+            ${Object.keys(this.countries).map(c=>
+                `<button onclick="game.changeCountry('${c}')">${c}</button>`
+            ).join("")}
         </div>
         `;
     }
 }
 
-/* ==========================
-   INIT
-========================== */
-
 const game=new Game();
 game.start();
-</script>
 
-</body>
-</html>
+</script>
