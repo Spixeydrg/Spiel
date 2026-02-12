@@ -1,0 +1,41 @@
+:root{
+    --bg:#0f0f14;
+    --card:#1c1c24;
+    --accent:#4aa3ff;
+}
+
+body{
+    margin:0;
+    font-family:Arial;
+    background:var(--bg);
+    color:white;
+}
+
+.container{
+    max-width:1100px;
+    margin:auto;
+    padding:20px;
+}
+
+.card{
+    background:var(--card);
+    padding:15px;
+    border-radius:12px;
+    margin-bottom:15px;
+}
+
+button{
+    background:var(--accent);
+    border:none;
+    padding:8px 14px;
+    margin:5px;
+    border-radius:6px;
+    cursor:pointer;
+    color:white;
+}
+
+.statbar{
+    height:14px;
+    border-radius:6px;
+    margin-bottom:6px;
+}
