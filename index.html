@@ -2,204 +2,258 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>LifeSim Web</title>
+<title>Ultra LifeSim</title>
 <style>
-body {
-    font-family: Arial, sans-serif;
-    background: #111;
-    color: white;
-    text-align: center;
-    margin: 0;
+body{
+    margin:0;
+    font-family:Arial;
+    background:#0f0f0f;
+    color:white;
 }
-.container {
-    max-width: 800px;
-    margin: auto;
-    padding: 20px;
+.container{
+    max-width:1000px;
+    margin:auto;
+    padding:20px;
 }
-.card {
-    background: #1e1e1e;
-    padding: 20px;
-    border-radius: 12px;
-    margin: 15px 0;
+.card{
+    background:#1c1c1c;
+    padding:15px;
+    border-radius:12px;
+    margin-bottom:15px;
 }
-button {
-    padding: 10px 15px;
-    margin: 5px;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    background: #3498db;
-    color: white;
+button{
+    padding:8px 12px;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+    margin:4px;
+    background:#3498db;
+    color:white;
 }
-button:hover {
-    background: #2980b9;
+button:hover{background:#2980b9}
+.bar{
+    height:14px;
+    border-radius:6px;
+    margin-bottom:6px;
 }
-.bar {
-    height: 15px;
-    border-radius: 5px;
-    margin: 5px 0;
-}
+h1{text-align:center}
 </style>
 </head>
 <body>
 <div class="container">
-    <h1>🌍 LifeSim Web</h1>
-    <div id="game"></div>
+<h1>🌍 Ultra LifeSim</h1>
+<div id="game"></div>
 </div>
 
 <script>
-let player;
-
-function newLife() {
-    player = {
-        name: prompt("Name?"),
-        age: 0,
-        country: "Deutschland",
-        gender: Math.random() > 0.5 ? "Männlich" : "Weiblich",
-        health: 80,
-        happiness: 80,
-        intelligence: 50,
-        looks: 50,
-        money: 0,
-        job: "Kein Job",
-        education: "Keine",
-        relationships: [],
-        criminalRecord: false,
-        inPrison: false,
-        prisonYears: 0,
-        alive: true
-    };
-    saveGame();
-    render();
-}
-
-function saveGame() {
-    localStorage.setItem("lifeSimSave", JSON.stringify(player));
-}
-
-function loadGame() {
-    const save = localStorage.getItem("lifeSimSave");
-    if (save) {
-        player = JSON.parse(save);
-        render();
-    } else {
-        newLife();
+class Player{
+    constructor(name){
+        this.name=name;
+        this.age=0;
+        this.gender=Math.random()>0.5?"Männlich":"Weiblich";
+        this.health=80;
+        this.happiness=80;
+        this.intelligence=50;
+        this.looks=50;
+        this.money=1000;
+        this.job="Arbeitslos";
+        this.education="Keine";
+        this.reputation=50;
+        this.partner=null;
+        this.children=[];
+        this.house=false;
+        this.car=false;
+        this.inPrison=false;
+        this.prisonYears=0;
+        this.alive=true;
+        this.achievements=[];
     }
 }
 
-function bar(value, color) {
-    return `<div class="bar" style="width:${value}%; background:${color};"></div>`;
+let player;
+
+function save(){localStorage.setItem("ultraLife",JSON.stringify(player))}
+function load(){
+    let data=localStorage.getItem("ultraLife");
+    if(data){player=Object.assign(new Player(),JSON.parse(data))}
+    else newGame();
+    render();
 }
 
-function ageUp() {
-    if (!player.alive) return;
+function newGame(){
+    let name=prompt("Name?");
+    player=new Player(name||"Max");
+    save();
+}
+
+function bar(val,color){
+    if(val>100)val=100;
+    if(val<0)val=0;
+    return `<div class="bar" style="width:${val}%;background:${color}"></div>`;
+}
+
+function ageUp(){
+    if(!player.alive)return;
 
     player.age++;
 
-    if (player.inPrison) {
+    if(player.inPrison){
         player.prisonYears--;
-        if (player.prisonYears <= 0) {
-            player.inPrison = false;
-            alert("Du bist aus dem Gefängnis entlassen!");
+        if(player.prisonYears<=0){
+            player.inPrison=false;
+            alert("Du bist frei!");
         }
-    } else {
+    }else{
         randomEvent();
-        earnMoney();
+        salary();
     }
 
-    if (player.age > 70 && Math.random() < 0.2) die();
-    if (player.health <= 0) die();
+    if(player.age>75 && Math.random()<0.3) die();
+    if(player.health<=0) die();
 
-    saveGame();
+    checkAchievements();
+    save();
     render();
 }
 
-function earnMoney() {
-    if (player.job === "Arzt") player.money += 5000;
-    if (player.job === "Lehrer") player.money += 2500;
+function salary(){
+    if(player.job==="Arzt")player.money+=6000;
+    if(player.job==="Programmierer")player.money+=5000;
+    if(player.job==="Lehrer")player.money+=3000;
 }
 
-function randomEvent() {
-    const events = [
-        () => { player.happiness += 5; alert("Du hattest ein tolles Jahr!"); },
-        () => { player.health -= 10; alert("Du wurdest krank."); },
-        () => { player.money += 1000; alert("Du hast Geld gefunden!"); },
-        () => { player.happiness -= 5; alert("Streit mit einem Freund."); }
+function randomEvent(){
+    let events=[
+        ()=>{player.happiness+=5;},
+        ()=>{player.health-=10; alert("Du wurdest krank.");},
+        ()=>{player.money+=2000; alert("Bonus erhalten!");},
+        ()=>{player.reputation-=5;}
     ];
-    events[Math.floor(Math.random() * events.length)]();
+    events[Math.floor(Math.random()*events.length)]();
 }
 
-function study() {
-    if (player.age >= 6 && player.age < 18) {
-        player.intelligence += 5;
-        player.education = "Schule";
+function study(){
+    if(player.age<18){
+        player.intelligence+=5;
+        player.education="Schule";
+    }else{
+        player.intelligence+=10;
+        player.education="Studium";
     }
-    if (player.age >= 18 && player.intelligence > 60) {
-        player.education = "Studium";
-        player.intelligence += 10;
+}
+
+function getJob(){
+    if(player.education==="Studium" && player.intelligence>70){
+        player.job="Arzt";
+    }else if(player.intelligence>60){
+        player.job="Programmierer";
+    }else if(player.education==="Studium"){
+        player.job="Lehrer";
+    }else{
+        alert("Nicht qualifiziert!");
     }
-    saveGame();
-    render();
 }
 
-function getJob() {
-    if (player.education === "Studium" && player.intelligence > 70) {
-        player.job = "Arzt";
-    } else if (player.education === "Studium") {
-        player.job = "Lehrer";
-    } else {
-        alert("Du brauchst bessere Bildung!");
+function date(){
+    if(player.age<16){alert("Zu jung!");return;}
+    if(!player.partner){
+        player.partner="Partner";
+        player.happiness+=10;
+    }else{
+        alert("Schon vergeben!");
     }
-    saveGame();
-    render();
 }
 
-function commitCrime() {
-    if (Math.random() < 0.4) {
-        player.money += 2000;
-        alert("Erfolgreicher Diebstahl!");
-    } else {
-        player.inPrison = true;
-        player.prisonYears = 3;
-        player.criminalRecord = true;
-        alert("Du wurdest verhaftet!");
+function makeChild(){
+    if(player.partner){
+        player.children.push("Kind "+(player.children.length+1));
+        player.happiness+=5;
     }
-    saveGame();
-    render();
 }
 
-function die() {
-    player.alive = false;
-    alert("Du bist gestorben im Alter von " + player.age);
+function commitCrime(){
+    if(Math.random()<0.5){
+        player.money+=3000;
+        player.reputation-=10;
+    }else{
+        player.inPrison=true;
+        player.prisonYears=3;
+        player.reputation-=20;
+    }
 }
 
-function render() {
-    document.getElementById("game").innerHTML = `
-    <div class="card">
-        <h2>${player.name} (${player.age})</h2>
-        <p>${player.gender} | ${player.country}</p>
-        <p>Job: ${player.job}</p>
-        <p>Bildung: ${player.education}</p>
-        <p>Geld: ${player.money}€</p>
-    </div>
-
-    <div class="card">
-        ❤️ Gesundheit ${bar(player.health, "red")}
-        😊 Glück ${bar(player.happiness, "yellow")}
-        🧠 Intelligenz ${bar(player.intelligence, "blue")}
-        😎 Aussehen ${bar(player.looks, "pink")}
-    </div>
-
-    <div class="card">
-        ${player.alive ? `<button onclick="ageUp()">Nächstes Jahr</button>` : `<button onclick="newLife()">Neues Leben</button>`}
-        <button onclick="study()">Lernen</button>
-        <button onclick="getJob()">Job suchen</button>
-        <button onclick="commitCrime()">Verbrechen</button>
-    </div>
-    `;
+function buyHouse(){
+    if(player.money>=20000){
+        player.money-=20000;
+        player.house=true;
+    }
 }
 
-loadGame();
+function buyCar(){
+    if(player.money>=10000){
+        player.money-=10000;
+        player.car=true;
+    }
+}
+
+function invest(){
+    if(player.money>=5000){
+        player.money-=5000;
+        if(Math.random()<0.5)player.money+=10000;
+        else alert("Investment verloren!");
+    }
+}
+
+function checkAchievements(){
+    if(player.money>100000 && !player.achievements.includes("Reich")){
+        player.achievements.push("Reich");
+    }
+    if(player.age>=100 && !player.achievements.includes("100 Jahre")){
+        player.achievements.push("100 Jahre");
+    }
+}
+
+function die(){
+    player.alive=false;
+    alert("Du bist im Alter von "+player.age+" gestorben.");
+}
+
+function render(){
+document.getElementById("game").innerHTML=`
+<div class="card">
+<h2>${player.name} (${player.age})</h2>
+<p>${player.gender}</p>
+<p>Job: ${player.job}</p>
+<p>Geld: ${player.money}€</p>
+<p>Ruf: ${player.reputation}</p>
+<p>Partner: ${player.partner||"Keiner"}</p>
+<p>Kinder: ${player.children.length}</p>
+<p>Haus: ${player.house?"Ja":"Nein"} | Auto: ${player.car?"Ja":"Nein"}</p>
+<p>Achievements: ${player.achievements.join(", ")}</p>
+</div>
+
+<div class="card">
+❤️ ${bar(player.health,"red")}
+😊 ${bar(player.happiness,"yellow")}
+🧠 ${bar(player.intelligence,"blue")}
+😎 ${bar(player.looks,"pink")}
+</div>
+
+<div class="card">
+${player.alive?`<button onclick="ageUp()">Nächstes Jahr</button>`:`<button onclick="newGame()">Neues Leben</button>`}
+<button onclick="study()">Lernen</button>
+<button onclick="getJob()">Job</button>
+<button onclick="date()">Dating</button>
+<button onclick="makeChild()">Kind</button>
+<button onclick="commitCrime()">Verbrechen</button>
+<button onclick="buyHouse()">Haus</button>
+<button onclick="buyCar()">Auto</button>
+<button onclick="invest()">Investieren</button>
+</div>
+`;
+}
+
+load();
 </script>
 </body>
 </html>
